@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { getProject, saveProject } from '../lib/db';
-import { go } from '../lib/hooks';
+import { useEffect, useRef, useState } from 'react';
+import { deletePattern, getProject, saveProject } from '../lib/db';
+import { addPatternFile } from '../lib/patterns';
+import { go, usePatterns } from '../lib/hooks';
 import { emptyGauge, emptyNeedle, emptyYarn, type Gauge, type Part, type Project } from '../lib/types';
 import { gaugeDiff, newPart, newProject } from '../lib/util';
 import { Icon, Top } from '../components/ui';
@@ -22,6 +23,10 @@ function GaugeNote({ g, chest }: { g: Gauge; chest: number | null }) {
 
 export default function ProjectEdit({ id }: { id?: string }) {
   const [p, setP] = useState<Project | null>(id ? null : newProject());
+  const [pending, setPending] = useState<File[]>([]); // 저장할 때 붙일 도안 PDF
+  const [saving, setSaving] = useState(false);
+  const pdfRef = useRef<HTMLInputElement>(null);
+  const existing = usePatterns(id ?? '-');
   useEffect(() => {
     if (id) getProject(id).then((x) => x && setP(structuredClone(x)));
   }, [id]);
@@ -33,10 +38,21 @@ export default function ProjectEdit({ id }: { id?: string }) {
   const remove = (k: 'yarns' | 'needles' | 'gauges' | 'parts', i: number) => setP({ ...p, [k]: p[k].filter((_, j) => j !== i) });
 
   const save = async () => {
+    if (saving) return;
+    setSaving(true);
     const out = { ...p, name: p.name.trim() || '이름 없는 작품' };
     if (out.parts.length === 0) out.parts = [newPart('몸판')];
     await saveProject(out);
+    for (const f of pending) await addPatternFile(out.id, f);
     go(`project/${out.id}`);
+  };
+
+  const addPdfs = (files: FileList | null) => {
+    const list = Array.from(files ?? []).filter((f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+    if (!list.length) return;
+    setPending([...pending, ...list]);
+    // 도안 이름이 비어 있으면 첫 파일 이름으로 채워요
+    if (!p.pattern.trim()) setP({ ...p, pattern: list[0].name.replace(/\.pdf$/i, '') });
   };
 
   return (
@@ -45,7 +61,7 @@ export default function ProjectEdit({ id }: { id?: string }) {
         back={id ? `#/project/${id}` : '#/'}
         title={id ? '작품 편집' : '새 작품'}
         right={
-          <button type="button" className="btn primary" onClick={save}>
+          <button type="button" className="btn primary" onClick={save} disabled={saving}>
             저장
           </button>
         }
@@ -97,6 +113,38 @@ export default function ProjectEdit({ id }: { id?: string }) {
             <input type="date" value={p.endDate ?? ''} onChange={(e) => setP({ ...p, endDate: e.target.value || null, status: e.target.value ? 'done' : 'active' })} />
           </label>
         </div>
+      </section>
+
+      <section className="card stack">
+        <div className="row between">
+          <h2 className="h2">도안 PDF</h2>
+          <button type="button" className="btn dashed" onClick={() => pdfRef.current?.click()}>
+            <Icon name="plus" size={18} />
+            도안 PDF 불러오기
+          </button>
+          <input ref={pdfRef} type="file" accept="application/pdf,.pdf" multiple hidden onChange={(e) => { addPdfs(e.target.files); e.target.value = ''; }} />
+        </div>
+        {!existing?.length && !pending.length && <p className="sub">파일 앱, iCloud Drive, 다운로드 폴더에서 도안 PDF를 골라두면 카운터 옆에 띄워놓고 뜰 수 있어요. 여러 개(본 도안, 사이즈표 등)를 넣어도 돼요.</p>}
+        {existing?.map((pt) => (
+          <div key={pt.id} className="row" style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+            <Icon name="pdf" />
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pt.name}</span>
+            <button type="button" className="link-btn" style={{ color: 'var(--danger)' }} onClick={() => confirm(`'${pt.name}' 도안을 앱에서 지울까요? 원본 파일은 그대로 있어요.`) && deletePattern(pt.id)}>
+              삭제
+            </button>
+          </div>
+        ))}
+        {pending.map((f, i) => (
+          <div key={i} className="row" style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+            <Icon name="pdf" />
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {f.name.replace(/\.pdf$/i, '')} <span className="sub">· 저장하면 붙어요</span>
+            </span>
+            <button type="button" className="link-btn" style={{ color: 'var(--danger)' }} onClick={() => setPending(pending.filter((_, j) => j !== i))}>
+              빼기
+            </button>
+          </div>
+        ))}
       </section>
 
       <section className="card stack">
@@ -273,8 +321,8 @@ export default function ProjectEdit({ id }: { id?: string }) {
         </label>
       </section>
 
-      <button type="button" className="btn primary block" onClick={save}>
-        저장
+      <button type="button" className="btn primary block" onClick={save} disabled={saving}>
+        {saving ? '저장하는 중…' : '저장'}
       </button>
     </main>
   );

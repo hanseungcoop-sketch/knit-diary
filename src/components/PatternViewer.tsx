@@ -5,7 +5,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { savePattern } from '../lib/db';
 import { prefs, usePatterns } from '../lib/hooks';
 import type { PatternFile, Ruler } from '../lib/types';
-import { uid } from '../lib/util';
+import { addPatternFile } from '../lib/patterns';
 import { Icon } from './ui';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -19,23 +19,6 @@ const openDoc = (p: PatternFile) => {
 
 const ZOOMS = [1, 1.5, 2, 3];
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-
-export async function addPatternFile(projectId: string, file: File) {
-  const p: PatternFile = {
-    id: uid(),
-    projectId,
-    name: file.name.replace(/\.pdf$/i, ''),
-    blob: file,
-    createdAt: Date.now(),
-    page: 1,
-    zoom: 1,
-    ruler: null,
-    follow: true
-  };
-  await savePattern(p);
-  prefs.set('pattern:' + projectId, p.id);
-  return p;
-}
 
 /** nudge: 카운터를 탭할 때마다 seq가 1씩 늘고, delta(+1/−1)만큼 자를 옮겨요 */
 export default function PatternViewer({ projectId, nudge }: { projectId: string; nudge?: { seq: number; delta: number } }) {

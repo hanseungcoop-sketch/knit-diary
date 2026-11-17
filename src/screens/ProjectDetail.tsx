@@ -4,6 +4,7 @@ import { go, prefs, usePatterns, usePhotos, useProject } from '../lib/hooks';
 import { projectIcs } from '../lib/ics';
 import { shrinkImage } from '../lib/image';
 import { shareFile } from '../lib/share';
+import { addPatternFile } from '../lib/patterns';
 import type { PatternFile, Photo, Project } from '../lib/types';
 import { daysBetween, decInfo, dotDate, gaugeDiff, gaugeText, partPct, projectPct, shortDate, uid, ymd } from '../lib/util';
 import { Bar, Icon, PhotoImg } from '../components/ui';
@@ -65,7 +66,6 @@ function PatternList({ p, patterns }: { p: Project; patterns: PatternFile[] }) {
   const ref = useRef<HTMLInputElement>(null);
   const add = async (f?: File) => {
     if (!f) return;
-    const { addPatternFile } = await import('../components/PatternViewer');
     await addPatternFile(p.id, f);
   };
   const open = (pt: PatternFile) => {
