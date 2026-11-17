@@ -78,3 +78,22 @@ export interface Photo {
 export const emptyYarn = (): Yarn => ({ brand: '', name: '', color: '', lot: '', weight: '', used: '', remaining: '' });
 export const emptyNeedle = (): Needle => ({ size: '', kind: '', use: '' });
 export const emptyGauge = (): Gauge => ({ pattern: '', patSt: null, patRow: null, mySt: null, myRow: null });
+
+export interface Ruler {
+  page: number; // 자가 있는 쪽
+  top: number; // 쪽 높이 대비 위치 (0~1)
+  h: number; // 쪽 높이 대비 한 줄 높이 (0~1)
+}
+
+/** 작품에 붙인 도안 PDF */
+export interface PatternFile {
+  id: string;
+  projectId: string;
+  name: string;
+  blob: Blob;
+  createdAt: number;
+  page: number; // 마지막으로 보던 쪽
+  zoom: number; // 1 = 화면 너비에 맞춤
+  ruler: Ruler | null;
+  follow: boolean; // 카운터를 탭하면 자도 한 줄 위로
+}

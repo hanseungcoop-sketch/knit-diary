@@ -33,7 +33,7 @@ export default function Settings() {
     if (!confirm('백업 파일을 불러올까요? 같은 작품은 백업 내용으로 바뀌어요.')) return;
     try {
       const r = await restoreBackup(f);
-      setStatus(`작품 ${r.projects}개, 사진 ${r.photos}장을 불러왔어요.`);
+      setStatus(`작품 ${r.projects}개, 사진 ${r.photos}장, 도안 ${r.patterns}개를 불러왔어요.`);
     } catch (e) {
       setStatus(`불러오지 못했어요: ${(e as Error).message}`);
     }

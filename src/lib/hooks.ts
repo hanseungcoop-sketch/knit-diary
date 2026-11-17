@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getProject, listPhotos, listProjects, onChange } from './db';
-import type { Photo, Project } from './types';
+import { getProject, listPatterns, listPhotos, listProjects, onChange } from './db';
+import type { PatternFile, Photo, Project } from './types';
 
 /** 저장소가 바뀔 때마다 다시 읽어오는 작은 훅 */
 function useLive<T>(load: () => Promise<T>, deps: unknown[]): T | undefined {
@@ -22,6 +22,38 @@ function useLive<T>(load: () => Promise<T>, deps: unknown[]): T | undefined {
 export const useProjects = () => useLive<Project[]>(listProjects, []);
 export const useProject = (id: string) => useLive<Project | undefined>(() => getProject(id), [id]);
 export const usePhotos = (id: string) => useLive<Photo[]>(() => listPhotos(id), [id]);
+export const usePatterns = (id: string) => useLive<PatternFile[]>(() => listPatterns(id), [id]);
+
+/** 가로로 넓게 놓였는지 (도안 + 카운터 나란히 보기) */
+export function useLandscape() {
+  const q = '(orientation: landscape) and (min-width: 900px)';
+  const [on, setOn] = useState(() => window.matchMedia(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia(q);
+    const f = () => setOn(m.matches);
+    m.addEventListener('change', f);
+    return () => m.removeEventListener('change', f);
+  }, []);
+  return on;
+}
+
+/** 작품마다 기억하는 작은 설정 (카운터 모드, 고른 파트) */
+export const prefs = {
+  get: (k: string) => {
+    try {
+      return localStorage.getItem('knit:' + k);
+    } catch {
+      return null;
+    }
+  },
+  set: (k: string, v: string) => {
+    try {
+      localStorage.setItem('knit:' + k, v);
+    } catch {
+      /* 저장 못 해도 동작에는 문제 없음 */
+    }
+  }
+};
 
 /** 사진 Blob을 화면에 보여줄 주소로 바꿔요 */
 export function useBlobUrl(blob?: Blob) {

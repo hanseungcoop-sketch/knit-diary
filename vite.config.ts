@@ -9,6 +9,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
+      workbox: {
+        globPatterns: ['**/*.{js,mjs,css,html,png,webmanifest}'],
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024
+      },
       includeAssets: ['apple-touch-icon.png'],
       manifest: {
         name: '뜨개 다이어리',
