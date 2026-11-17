@@ -12,7 +12,9 @@ export default defineConfig({
       registerType: 'prompt',
       workbox: {
         globPatterns: ['**/*.{js,mjs,css,html,png,webmanifest}'],
-        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        // 글꼴 정보 파일은 처음 필요할 때 받아서 저장해두고, 그다음부터는 오프라인에서도 써요
+        runtimeCaching: [{ urlPattern: /\/pdfjs\//, handler: 'CacheFirst', options: { cacheName: 'pdfjs-assets' } }]
       },
       includeAssets: ['apple-touch-icon.png'],
       manifest: {

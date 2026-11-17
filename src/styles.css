@@ -196,3 +196,9 @@ table.simple td { padding: 8px 8px 8px 0; border-top: 1px solid var(--line); }
 .pill-info.ok { background: var(--sage-tint); color: #2b3f2f; font-weight: 700; }
 .infogrid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 600px) { .infogrid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.scan { background: #f4f7f2; border: 1px solid #cfdcc9; border-radius: 16px; padding: 18px; }
+.scan-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-top: 1px solid #dfe7da; cursor: pointer; font-size: 15px; }
+.scan-row input { width: 22px; height: 22px; accent-color: var(--accent); flex-shrink: 0; margin: 0; }
+.scan-row .k { width: 108px; flex-shrink: 0; color: var(--quiet); }
+.scan-row .v { flex: 1; min-width: 0; }

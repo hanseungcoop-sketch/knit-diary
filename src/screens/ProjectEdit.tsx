@@ -3,7 +3,8 @@ import { deletePattern, getProject, saveProject } from '../lib/db';
 import { addPatternFile } from '../lib/patterns';
 import { go, usePatterns } from '../lib/hooks';
 import { emptyGauge, emptyNeedle, emptyYarn, type Gauge, type Part, type Project } from '../lib/types';
-import { gaugeDiff, newPart, newProject } from '../lib/util';
+import { gaugeDiff, gaugeText, newPart, newProject } from '../lib/util';
+import { bySize, foundAnything, yarnFrom, type FoundInfo } from '../lib/patternInfo';
 import { Icon, Top } from '../components/ui';
 
 const num = (v: string) => (v.trim() === '' ? null : Number(v));
@@ -21,12 +22,121 @@ function GaugeNote({ g, chest }: { g: Gauge; chest: number | null }) {
   );
 }
 
+type Scan = { state: 'loading' } | { state: 'none' } | { state: 'found'; info: FoundInfo; file: string };
+type Key = 'pattern' | 'size' | 'chest' | 'yarn' | 'needles' | 'gauges';
+
+/** 도안에서 찾은 정보를 보여주고, 고른 것만 채워요 */
+function ScanPanel({ scan, p, onApply, onClose }: { scan: Scan; p: Project; onApply: (next: Project) => void; onClose: () => void }) {
+  const info = scan.state === 'found' ? scan.info : null;
+  const [size, setSize] = useState(() => (info && info.sizes.includes(p.size) ? p.size : info?.sizes[0] ?? p.size));
+  const [checks, setChecks] = useState<Record<Key, boolean>>({
+    pattern: !p.pattern.trim() || p.pattern === (scan.state === 'found' ? scan.file : ''),
+    size: !p.size.trim(),
+    chest: !p.chestCm,
+    yarn: p.yarns.length === 0,
+    needles: p.needles.length === 0,
+    gauges: p.gauges.length === 0
+  });
+  if (scan.state === 'loading') return <p className="notice ok" role="status">도안을 읽고 있어요…</p>;
+  if (scan.state === 'none')
+    return (
+      <div className="notice warn row between wrap" role="status">
+        <span>이 PDF에서 정보를 찾지 못했어요. 스캔한 이미지로 된 도안이면 글자를 읽을 수 없어요. 직접 입력해 주세요.</span>
+        <button type="button" className="btn" onClick={onClose}>
+          닫기
+        </button>
+      </div>
+    );
+  const f = info!;
+  const chest = bySize(f.chest, f.sizes, size);
+  const yarn = yarnFrom(f, size);
+  const rows: { key: Key; label: string; value: string; adds?: boolean }[] = [];
+  if (f.pattern) rows.push({ key: 'pattern', label: '도안 이름', value: f.pattern });
+  if (f.sizes.length) rows.push({ key: 'size', label: '사이즈', value: size });
+  if (chest) rows.push({ key: 'chest', label: '도안 가슴둘레', value: `${chest}cm` });
+  if (yarn) rows.push({ key: 'yarn', label: '실', value: [yarn.name, yarn.weight, yarn.used && `사용 ${yarn.used}`].filter(Boolean).join(' · '), adds: p.yarns.length > 0 });
+  if (f.needles.length) rows.push({ key: 'needles', label: '바늘', value: f.needles.map((n) => [n.size, n.kind].filter(Boolean).join(' ')).join(', '), adds: p.needles.length > 0 });
+  if (f.gauges.length) rows.push({ key: 'gauges', label: '게이지 (도안)', value: f.gauges.map((g) => [g.pattern, gaugeText(g.patSt, g.patRow)].filter(Boolean).join(' ')).join(' / '), adds: p.gauges.length > 0 });
+
+  const apply = () => {
+    const next = { ...p };
+    if (checks.pattern && f.pattern) next.pattern = f.pattern;
+    if (checks.size && f.sizes.length) next.size = size;
+    if (checks.chest && chest) next.chestCm = chest;
+    if (checks.yarn && yarn) next.yarns = [...p.yarns, yarn];
+    if (checks.needles) next.needles = [...p.needles, ...f.needles];
+    if (checks.gauges) next.gauges = [...p.gauges, ...f.gauges];
+    onApply(next);
+  };
+
+  return (
+    <div className="scan stack" role="region" aria-label="도안에서 찾은 정보">
+      <div className="row between wrap">
+        <h3 className="h3">도안에서 찾은 정보</h3>
+        {f.sizes.length > 1 && (
+          <label className="row" style={{ gap: 8, fontSize: 15 }}>
+            내 사이즈
+            <select value={size} onChange={(e) => setSize(e.target.value)} style={{ minHeight: 44, borderRadius: 10, border: '1px solid var(--field)', padding: '0 10px', fontSize: 16 }}>
+              {f.sizes.map((sz) => (
+                <option key={sz}>{sz}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+      <p className="sub" style={{ fontSize: 13 }}>
+        체크한 항목만 채워요. 이미 입력한 칸은 기본으로 체크하지 않았어요. 채운 뒤에도 아래에서 고칠 수 있어요.
+      </p>
+      {rows.map((r) => (
+        <label key={r.key} className="scan-row">
+          <input type="checkbox" checked={checks[r.key]} onChange={(e) => setChecks({ ...checks, [r.key]: e.target.checked })} />
+          <span className="k">{r.label}</span>
+          <span className="v">
+            {r.value}
+            {r.adds && <span className="sub"> · 기존 기록에 추가</span>}
+          </span>
+        </label>
+      ))}
+      <div className="row">
+        <button type="button" className="btn primary" onClick={apply} disabled={!rows.some((r) => checks[r.key])}>
+          선택한 항목 채우기
+        </button>
+        <button type="button" className="btn" onClick={onClose}>
+          닫기
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ProjectEdit({ id }: { id?: string }) {
   const [p, setP] = useState<Project | null>(id ? null : newProject());
   const [pending, setPending] = useState<File[]>([]); // 저장할 때 붙일 도안 PDF
   const [saving, setSaving] = useState(false);
   const pdfRef = useRef<HTMLInputElement>(null);
   const existing = usePatterns(id ?? '-');
+  const [scan, setScan] = useState<Scan | null>(null);
+  const [scanKey, setScanKey] = useState(0);
+
+  /** 고른 PDF들에서 차례로 정보를 찾아요 */
+  const runScan = async (blobs: { blob: Blob; name: string }[]) => {
+    if (!blobs.length) return;
+    setScan({ state: 'loading' });
+    try {
+      const [{ pdfLines }, { parsePatternText }] = await Promise.all([import('../lib/pdfText'), import('../lib/patternInfo')]);
+      for (const b of blobs) {
+        const info = parsePatternText(await pdfLines(b.blob));
+        if (foundAnything(info)) {
+          setScanKey((k) => k + 1);
+          setScan({ state: 'found', info, file: b.name });
+          return;
+        }
+      }
+      setScan({ state: 'none' });
+    } catch {
+      setScan({ state: 'none' });
+    }
+  };
   useEffect(() => {
     if (id) getProject(id).then((x) => x && setP(structuredClone(x)));
   }, [id]);
@@ -53,6 +163,7 @@ export default function ProjectEdit({ id }: { id?: string }) {
     setPending([...pending, ...list]);
     // 도안 이름이 비어 있으면 첫 파일 이름으로 채워요
     if (!p.pattern.trim()) setP({ ...p, pattern: list[0].name.replace(/\.pdf$/i, '') });
+    runScan(list.map((f) => ({ blob: f, name: f.name.replace(/\.pdf$/i, '') })));
   };
 
   return (
@@ -145,6 +256,17 @@ export default function ProjectEdit({ id }: { id?: string }) {
             </button>
           </div>
         ))}
+        {(existing?.length || pending.length) && !scan ? (
+          <button
+            type="button"
+            className="btn"
+            style={{ alignSelf: 'flex-start' }}
+            onClick={() => runScan([...pending.map((f) => ({ blob: f as Blob, name: f.name.replace(/\.pdf$/i, '') })), ...(existing ?? []).map((x) => ({ blob: x.blob, name: x.name }))])}
+          >
+            도안에서 정보 가져오기
+          </button>
+        ) : null}
+        {scan && <ScanPanel key={scanKey} scan={scan} p={p} onApply={(next) => { setP(next); setScan(null); }} onClose={() => setScan(null)} />}
       </section>
 
       <section className="card stack">

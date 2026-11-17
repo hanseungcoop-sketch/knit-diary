@@ -1,19 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import * as pdfjs from 'pdfjs-dist';
-import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { openPdf, type PDFDocumentProxy, type RenderTask } from '../lib/pdfjs';
 import { savePattern } from '../lib/db';
 import { prefs, usePatterns } from '../lib/hooks';
 import type { PatternFile, Ruler } from '../lib/types';
 import { addPatternFile } from '../lib/patterns';
 import { Icon } from './ui';
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-
 // 같은 PDF를 여러 번 열지 않도록 기억해둬요
 const docs = new Map<string, Promise<PDFDocumentProxy>>();
 const openDoc = (p: PatternFile) => {
-  if (!docs.has(p.id)) docs.set(p.id, p.blob.arrayBuffer().then((buf) => pdfjs.getDocument({ data: new Uint8Array(buf) }).promise));
+  if (!docs.has(p.id)) docs.set(p.id, p.blob.arrayBuffer().then((buf) => openPdf(new Uint8Array(buf)).promise));
   return docs.get(p.id)!;
 };
 
