@@ -5,6 +5,23 @@ import { shareFile } from '../lib/share';
 import { daysBetween, dotDate, gaugeDiff, gaugeText, partPct, projectPct, shortDate, ymd } from '../lib/util';
 import { Bar, Icon, Top } from '../components/ui';
 
+function Info({ k, v }: { k: string; v: string }) {
+  return (
+    <div>
+      <dt>{k}</dt>
+      <dd style={v ? undefined : { color: 'var(--quiet)' }}>{v || '—'}</dd>
+    </div>
+  );
+}
+
+function Empty({ id, what }: { id: string; what: string }) {
+  return (
+    <p className="sub">
+      아직 {what} 기록이 없어요. <a href={`#/edit/${id}`}>편집에서 추가</a>
+    </p>
+  );
+}
+
 export default function ProjectDetail({ id }: { id: string }) {
   const p = useProject(id);
   const photos = usePhotos(id);
@@ -95,65 +112,139 @@ export default function ProjectDetail({ id }: { id: string }) {
         </button>
       </section>
 
-      {(p.yarns.length > 0 || p.needles.length > 0) && (
-        <section className="grid2">
-          <div className="card stack tight">
-            <h2 className="h3">실</h2>
-            {p.yarns.length === 0 && <p className="sub">기록 없음</p>}
-            {p.yarns.map((y, i) => (
-              <div key={i} className="stack tight">
-                <p>{[y.brand, y.name, y.weight].filter(Boolean).join(' ')}</p>
-                <p className="sub">{[y.color, y.lot && `로트 ${y.lot}`, y.used && `사용 ${y.used}`, y.remaining && `남음 ${y.remaining}`].filter(Boolean).join(' · ')}</p>
-              </div>
-            ))}
-          </div>
-          <div className="card stack tight">
-            <h2 className="h3">바늘</h2>
-            {p.needles.length === 0 && <p className="sub">기록 없음</p>}
-            {p.needles.map((n, i) => (
-              <p key={i}>
-                {n.size} <span className="sub">{[n.kind, n.use].filter(Boolean).join(' · ')}</span>
-              </p>
-            ))}
-          </div>
-        </section>
-      )}
+      <section className="card stack">
+        <h2 className="h2">작품 정보</h2>
+        <dl className="info">
+          <Info k="도안" v={p.pattern} />
+          <Info k="도안 출처" v={p.source} />
+          <Info k="사이즈" v={p.size} />
+          <Info k="도안 가슴둘레" v={p.chestCm ? `${p.chestCm}cm` : ''} />
+          <Info k="사용 대상" v={p.audience} />
+          <Info k="난이도" v={p.difficulty ? `${'●'.repeat(p.difficulty)}${'○'.repeat(5 - p.difficulty)}` : ''} />
+          <Info k="시작일" v={dotDate(p.startDate)} />
+          <Info k="완성일" v={p.endDate ? `${dotDate(p.endDate)} (${days}일)` : '진행 중'} />
+        </dl>
+      </section>
 
-      {p.gauges.length > 0 && (
-        <section className="card stack">
-          <h2 className="h3">게이지 (10cm)</h2>
+      <section className="card stack">
+        <h2 className="h2">실</h2>
+        {p.yarns.length === 0 ? (
+          <Empty id={p.id} what="실" />
+        ) : (
+          <div className="scroll-x">
+            <table className="simple">
+              <thead>
+                <tr>
+                  <th>브랜드 · 실 이름</th>
+                  <th>색상</th>
+                  <th>로트</th>
+                  <th>굵기</th>
+                  <th>사용량</th>
+                  <th>남은 양</th>
+                </tr>
+              </thead>
+              <tbody>
+                {p.yarns.map((y, i) => (
+                  <tr key={i}>
+                    <td>{[y.brand, y.name].filter(Boolean).join(' ') || '—'}</td>
+                    <td>{y.color || '—'}</td>
+                    <td>{y.lot || '—'}</td>
+                    <td>{y.weight || '—'}</td>
+                    <td>{y.used || '—'}</td>
+                    <td>{y.remaining || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="grid2">
+        <div className="card stack">
+          <h2 className="h2">바늘</h2>
+          {p.needles.length === 0 ? (
+            <Empty id={p.id} what="바늘" />
+          ) : (
+            <table className="simple">
+              <thead>
+                <tr>
+                  <th>호수</th>
+                  <th>종류</th>
+                  <th>용도</th>
+                </tr>
+              </thead>
+              <tbody>
+                {p.needles.map((n, i) => (
+                  <tr key={i}>
+                    <td style={{ fontWeight: 700 }}>{n.size || '—'}</td>
+                    <td>{n.kind || '—'}</td>
+                    <td>{n.use || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="card stack">
+          <h2 className="h2">게이지 (10cm)</h2>
+          {p.gauges.length === 0 ? (
+            <Empty id={p.id} what="게이지" />
+          ) : (
+            p.gauges.map((g, i) => {
+              const d = gaugeDiff(g, p.chestCm);
+              return (
+                <div key={i} className="stack tight">
+                  <p style={{ fontWeight: 700 }}>{g.pattern || `게이지 ${i + 1}`}</p>
+                  <p>
+                    도안 {gaugeText(g.patSt, g.patRow) || '—'} · 내 {gaugeText(g.mySt, g.myRow) || '—'}
+                  </p>
+                  {d && (
+                    <p className="sub" style={{ color: d.pct !== 0 ? '#8a5a00' : 'var(--accent-dark)', fontWeight: 700 }}>
+                      {d.pct === 0 ? '도안과 같아요' : `코 ${d.pct > 0 ? '+' : ''}${d.pct}%${d.est ? ` · 예상 가슴둘레 약 ${d.est}cm` : ''}`}
+                    </p>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      <section className="card stack">
+        <h2 className="h2">파트 설정</h2>
+        <div className="scroll-x">
           <table className="simple">
             <thead>
               <tr>
-                <th>무늬</th>
-                <th>도안</th>
-                <th>내 게이지</th>
-                <th>차이</th>
+                <th>파트</th>
+                <th>목표</th>
+                <th>무늬 반복</th>
+                <th>알림</th>
               </tr>
             </thead>
             <tbody>
-              {p.gauges.map((g, i) => {
-                const d = gaugeDiff(g, p.chestCm);
-                return (
-                  <tr key={i}>
-                    <td>{g.pattern}</td>
-                    <td>{gaugeText(g.patSt, g.patRow)}</td>
-                    <td>{gaugeText(g.mySt, g.myRow)}</td>
-                    <td style={{ fontWeight: 700, color: d && d.pct !== 0 ? '#8a5a00' : 'var(--accent-dark)' }}>{d ? (d.pct === 0 ? '맞음' : `코 ${d.pct > 0 ? '+' : ''}${d.pct}%`) : ''}</td>
-                  </tr>
-                );
-              })}
+              {p.parts.map((pt) => (
+                <tr key={pt.id}>
+                  <td style={{ fontWeight: 700 }}>{pt.name}</td>
+                  <td>{pt.target ? `${pt.target}단` : '—'}</td>
+                  <td>{pt.repeatLen ? `${pt.repeatLen}단` : '—'}</td>
+                  <td>
+                    {pt.decStart
+                      ? `${pt.decStart}단부터${pt.decEvery ? ` ${pt.decEvery}단마다` : ''}${pt.decTimes ? ` ${pt.decTimes}번` : ''}${pt.decText ? ` · ${pt.decText}` : ''}`
+                      : '—'}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {p.memo && (
-        <section className="card stack tight">
-          <h2 className="h3">메모</h2>
-          <p style={{ whiteSpace: 'pre-wrap' }}>{p.memo}</p>
-        </section>
-      )}
+      <section className="card stack tight">
+        <h2 className="h2">메모 · 수정한 부분과 이유</h2>
+        {p.memo ? <p style={{ whiteSpace: 'pre-wrap' }}>{p.memo}</p> : <Empty id={p.id} what="메모" />}
+      </section>
 
       <section className="stack">
         <h2 className="h2">일지</h2>
