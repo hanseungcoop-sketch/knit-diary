@@ -9,6 +9,7 @@ export default function Settings() {
   const [last, setLast] = useState<string | null>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [status, setStatus] = useState('');
+  const [upd, setUpd] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
@@ -16,6 +17,24 @@ export default function Settings() {
     getMeta<string>('lastBackup').then((v) => setLast(v ?? null));
     navigator.storage?.persisted?.().then(setPersisted).catch(() => setPersisted(null));
   }, []);
+
+  const checkUpdate = async () => {
+    setUpd('새 버전을 확인하고 있어요…');
+    try {
+      const r = await navigator.serviceWorker?.getRegistration();
+      if (!r) return setUpd('이 환경에서는 업데이트 확인을 할 수 없어요.');
+      await r.update();
+      const w = r.waiting ?? r.installing;
+      if (!w) return setUpd('지금이 최신 버전이에요.');
+      setUpd('새 버전을 적용하고 있어요…');
+      navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
+      const apply = () => w.postMessage({ type: 'SKIP_WAITING' });
+      if (w.state === 'installed') apply();
+      else w.addEventListener('statechange', () => w.state === 'installed' && apply());
+    } catch {
+      setUpd('확인하지 못했어요. 인터넷 연결을 확인해 주세요.');
+    }
+  };
 
   const backup = async () => {
     setStatus('백업 파일을 만들고 있어요…');
@@ -81,7 +100,23 @@ export default function Settings() {
           )}
         </section>
 
-        <p className="sub" style={{ fontSize: 13 }}>뜨개 다이어리 0.1.0</p>
+        <section className="card stack">
+          <h2 className="h2">앱 버전</h2>
+          <p>
+            지금 버전: <b>{__BUILD__}</b> 배포본
+          </p>
+          <button type="button" className="btn" style={{ alignSelf: 'flex-start' }} onClick={checkUpdate}>
+            업데이트 확인
+          </button>
+          {upd && (
+            <p className="notice ok" role="status">
+              {upd}
+            </p>
+          )}
+          <p className="sub" style={{ fontSize: 13 }}>
+            앱을 완전히 닫았다가 다시 열어도 새 버전이 적용돼요.
+          </p>
+        </section>
       </main>
       <TabBar current="settings" />
     </>

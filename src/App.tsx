@@ -16,7 +16,15 @@ function UpdateBanner() {
   const {
     needRefresh: [needRefresh],
     updateServiceWorker
-  } = useRegisterSW();
+  } = useRegisterSW({
+    // 앱을 켜둔 동안에도 새 버전이 있는지 확인해요 (다시 앱으로 돌아올 때, 30분마다)
+    onRegisteredSW(_url, r) {
+      if (!r) return;
+      const check = () => document.visibilityState === 'visible' && r.update().catch(() => {});
+      document.addEventListener('visibilitychange', check);
+      setInterval(check, 30 * 60 * 1000);
+    }
+  });
   if (!needRefresh) return null;
   return (
     <div className="update-banner" role="status">

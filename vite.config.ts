@@ -5,6 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 // 상대 경로(./)로 빌드해서 GitHub Pages의 어떤 저장소 이름에서도 그대로 동작해요.
 export default defineConfig({
   base: './',
+  define: { __BUILD__: JSON.stringify(new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ')) },
   plugins: [
     react(),
     VitePWA({
