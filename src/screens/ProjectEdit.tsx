@@ -60,7 +60,11 @@ function ScanPanel({ scan, p, onApply, onClose }: { scan: Scan; p: Project; onAp
 
   const apply = () => {
     const next = { ...p };
-    if (checks.pattern && f.pattern) next.pattern = f.pattern;
+    if (checks.pattern && f.pattern) {
+      // 작품명이 파일 이름으로만 채워져 있었다면 도안 이름으로 바꿔요
+      if (!p.name.trim() || p.name === p.pattern) next.name = f.pattern;
+      next.pattern = f.pattern;
+    }
     if (checks.size && f.sizes.length) next.size = size;
     if (checks.chest && chest) next.chestCm = chest;
     if (checks.yarn && yarn) next.yarns = [...p.yarns, yarn];
@@ -162,7 +166,8 @@ export default function ProjectEdit({ id }: { id?: string }) {
     if (!list.length) return;
     setPending([...pending, ...list]);
     // 도안 이름이 비어 있으면 첫 파일 이름으로 채워요
-    if (!p.pattern.trim()) setP({ ...p, pattern: list[0].name.replace(/\.pdf$/i, '') });
+    const fileName = list[0].name.replace(/\.pdf$/i, '');
+    if (!p.pattern.trim() || !p.name.trim()) setP({ ...p, pattern: p.pattern.trim() || fileName, name: p.name.trim() || fileName });
     runScan(list.map((f) => ({ blob: f, name: f.name.replace(/\.pdf$/i, '') })));
   };
 
@@ -179,7 +184,53 @@ export default function ProjectEdit({ id }: { id?: string }) {
       />
 
       <section className="card stack">
-        <h2 className="h2">기본 정보</h2>
+        <div className="row between">
+          <div className="stack tight">
+            <h2 className="h2">{id ? '도안 PDF' : '1. 도안 PDF부터 불러오기'}</h2>
+            {!id && <p className="sub">도안에 적힌 사이즈·실·바늘·게이지를 읽어서 아래 칸을 채워드려요. 도안이 없으면 건너뛰고 직접 입력하세요.</p>}
+          </div>
+          <button type="button" className={`btn ${!id && !pending.length ? 'primary' : 'dashed'}`} style={{ whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => pdfRef.current?.click()}>
+            <Icon name="plus" size={18} />
+            도안 PDF 불러오기
+          </button>
+          <input ref={pdfRef} type="file" accept="application/pdf,.pdf" multiple hidden onChange={(e) => { addPdfs(e.target.files); e.target.value = ''; }} />
+        </div>
+        {!existing?.length && !pending.length && <p className="sub" style={{ fontSize: 13 }}>파일 앱, iCloud Drive, 다운로드 폴더에서 고를 수 있어요. 본 도안과 사이즈표처럼 여러 개를 넣어도 돼요. 넣은 도안은 카운터 옆에 띄워놓고 볼 수 있어요.</p>}
+        {existing?.map((pt) => (
+          <div key={pt.id} className="row" style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+            <Icon name="pdf" />
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pt.name}</span>
+            <button type="button" className="link-btn" style={{ color: 'var(--danger)' }} onClick={() => confirm(`'${pt.name}' 도안을 앱에서 지울까요? 원본 파일은 그대로 있어요.`) && deletePattern(pt.id)}>
+              삭제
+            </button>
+          </div>
+        ))}
+        {pending.map((f, i) => (
+          <div key={i} className="row" style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+            <Icon name="pdf" />
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {f.name.replace(/\.pdf$/i, '')} <span className="sub">· 저장하면 붙어요</span>
+            </span>
+            <button type="button" className="link-btn" style={{ color: 'var(--danger)' }} onClick={() => setPending(pending.filter((_, j) => j !== i))}>
+              빼기
+            </button>
+          </div>
+        ))}
+        {(existing?.length || pending.length) && !scan ? (
+          <button
+            type="button"
+            className="btn"
+            style={{ alignSelf: 'flex-start' }}
+            onClick={() => runScan([...pending.map((f) => ({ blob: f as Blob, name: f.name.replace(/\.pdf$/i, '') })), ...(existing ?? []).map((x) => ({ blob: x.blob, name: x.name }))])}
+          >
+            도안에서 정보 가져오기
+          </button>
+        ) : null}
+        {scan && <ScanPanel key={scanKey} scan={scan} p={p} onApply={(next) => { setP(next); setScan(null); }} onClose={() => setScan(null)} />}
+      </section>
+
+      <section className="card stack">
+        <h2 className="h2">{id ? '기본 정보' : '2. 기본 정보'}</h2>
         <div className="fields">
           <label className="field full">
             작품명
@@ -224,49 +275,6 @@ export default function ProjectEdit({ id }: { id?: string }) {
             <input type="date" value={p.endDate ?? ''} onChange={(e) => setP({ ...p, endDate: e.target.value || null, status: e.target.value ? 'done' : 'active' })} />
           </label>
         </div>
-      </section>
-
-      <section className="card stack">
-        <div className="row between">
-          <h2 className="h2">도안 PDF</h2>
-          <button type="button" className="btn dashed" onClick={() => pdfRef.current?.click()}>
-            <Icon name="plus" size={18} />
-            도안 PDF 불러오기
-          </button>
-          <input ref={pdfRef} type="file" accept="application/pdf,.pdf" multiple hidden onChange={(e) => { addPdfs(e.target.files); e.target.value = ''; }} />
-        </div>
-        {!existing?.length && !pending.length && <p className="sub">파일 앱, iCloud Drive, 다운로드 폴더에서 도안 PDF를 골라두면 카운터 옆에 띄워놓고 뜰 수 있어요. 여러 개(본 도안, 사이즈표 등)를 넣어도 돼요.</p>}
-        {existing?.map((pt) => (
-          <div key={pt.id} className="row" style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
-            <Icon name="pdf" />
-            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pt.name}</span>
-            <button type="button" className="link-btn" style={{ color: 'var(--danger)' }} onClick={() => confirm(`'${pt.name}' 도안을 앱에서 지울까요? 원본 파일은 그대로 있어요.`) && deletePattern(pt.id)}>
-              삭제
-            </button>
-          </div>
-        ))}
-        {pending.map((f, i) => (
-          <div key={i} className="row" style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
-            <Icon name="pdf" />
-            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {f.name.replace(/\.pdf$/i, '')} <span className="sub">· 저장하면 붙어요</span>
-            </span>
-            <button type="button" className="link-btn" style={{ color: 'var(--danger)' }} onClick={() => setPending(pending.filter((_, j) => j !== i))}>
-              빼기
-            </button>
-          </div>
-        ))}
-        {(existing?.length || pending.length) && !scan ? (
-          <button
-            type="button"
-            className="btn"
-            style={{ alignSelf: 'flex-start' }}
-            onClick={() => runScan([...pending.map((f) => ({ blob: f as Blob, name: f.name.replace(/\.pdf$/i, '') })), ...(existing ?? []).map((x) => ({ blob: x.blob, name: x.name }))])}
-          >
-            도안에서 정보 가져오기
-          </button>
-        ) : null}
-        {scan && <ScanPanel key={scanKey} scan={scan} p={p} onApply={(next) => { setP(next); setScan(null); }} onClose={() => setScan(null)} />}
       </section>
 
       <section className="card stack">
