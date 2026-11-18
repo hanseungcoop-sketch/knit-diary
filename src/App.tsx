@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { applyUpdate, hasUpdate } from './lib/update';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { requestPersist } from './lib/db';
 import { useRoute } from './lib/hooks';
@@ -14,23 +15,26 @@ import Settings from './screens/Settings';
 
 function UpdateBanner() {
   const {
-    needRefresh: [needRefresh],
-    updateServiceWorker
-  } = useRegisterSW({
-    // 앱을 켜둔 동안에도 새 버전이 있는지 확인해요 (다시 앱으로 돌아올 때, 30분마다)
-    onRegisteredSW(_url, r) {
-      if (!r) return;
-      const check = () => document.visibilityState === 'visible' && r.update().catch(() => {});
-      document.addEventListener('visibilitychange', check);
-      setInterval(check, 30 * 60 * 1000);
-    }
-  });
-  if (!needRefresh) return null;
+    needRefresh: [needRefresh]
+  } = useRegisterSW();
+  const [fresh, setFresh] = useState(false);
+  // 앱을 열 때, 다른 앱에 갔다 돌아올 때, 30분마다 새 버전이 있는지 확인해요
+  useEffect(() => {
+    const check = () => document.visibilityState === 'visible' && hasUpdate().then((v) => setFresh(!!v));
+    check();
+    document.addEventListener('visibilitychange', check);
+    const t = setInterval(check, 30 * 60 * 1000);
+    return () => {
+      document.removeEventListener('visibilitychange', check);
+      clearInterval(t);
+    };
+  }, []);
+  if (!needRefresh && !fresh) return null;
   return (
     <div className="update-banner" role="status">
       새 버전이 있어요
-      <button type="button" onClick={() => updateServiceWorker(true)}>
-        새로고침
+      <button type="button" onClick={applyUpdate}>
+        지금 적용
       </button>
     </div>
   );

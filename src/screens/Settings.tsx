@@ -20,20 +20,18 @@ export default function Settings() {
 
   const checkUpdate = async () => {
     setUpd('새 버전을 확인하고 있어요…');
-    try {
-      const r = await navigator.serviceWorker?.getRegistration();
-      if (!r) return setUpd('이 환경에서는 업데이트 확인을 할 수 없어요.');
-      await r.update();
-      const w = r.waiting ?? r.installing;
-      if (!w) return setUpd('지금이 최신 버전이에요.');
-      setUpd('새 버전을 적용하고 있어요…');
-      navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
-      const apply = () => w.postMessage({ type: 'SKIP_WAITING' });
-      if (w.state === 'installed') apply();
-      else w.addEventListener('statechange', () => w.state === 'installed' && apply());
-    } catch {
-      setUpd('확인하지 못했어요. 인터넷 연결을 확인해 주세요.');
-    }
+    const { hasUpdate, applyUpdate } = await import('../lib/update');
+    const latest = await hasUpdate();
+    if (latest) {
+      setUpd(`새 버전(${latest})을 적용하고 있어요. 잠시 후 다시 열려요…`);
+      await applyUpdate();
+    } else setUpd(navigator.onLine ? '지금이 최신 버전이에요.' : '인터넷에 연결되어 있지 않아 확인하지 못했어요.');
+  };
+
+  const forceReload = async () => {
+    if (!confirm('화면 파일을 새로 받아서 다시 열까요? 작품 기록, 사진, 도안은 그대로 있어요.')) return;
+    const { applyUpdate } = await import('../lib/update');
+    await applyUpdate();
   };
 
   const backup = async () => {
@@ -105,9 +103,14 @@ export default function Settings() {
           <p>
             지금 버전: <b>{__BUILD__}</b> 배포본
           </p>
-          <button type="button" className="btn" style={{ alignSelf: 'flex-start' }} onClick={checkUpdate}>
-            업데이트 확인
-          </button>
+          <div className="row wrap">
+            <button type="button" className="btn" onClick={checkUpdate}>
+              업데이트 확인
+            </button>
+            <button type="button" className="btn" onClick={forceReload}>
+              강제로 새로 받기
+            </button>
+          </div>
           {upd && (
             <p className="notice ok" role="status">
               {upd}
